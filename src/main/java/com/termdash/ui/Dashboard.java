@@ -1,5 +1,13 @@
 package com.termdash.ui;
 
+import java.io.IOException;
+import java.text.DecimalFormat;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
 import com.googlecode.lanterna.Symbols;
 import com.googlecode.lanterna.TerminalSize;
 import com.googlecode.lanterna.TextColor;
@@ -12,14 +20,6 @@ import com.termdash.service.CryptoService;
 import com.termdash.service.EnvironmentService;
 import com.termdash.service.SystemMonitor;
 
-import java.io.IOException;
-import java.text.DecimalFormat;
-import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-
 public class Dashboard {
 
     private final Screen screen;
@@ -28,7 +28,7 @@ public class Dashboard {
     private final EnvironmentService envService;
     private final CryptoService cryptoService;
     private final DecimalFormat df = new DecimalFormat("0.0");
-    
+
     private List<SystemMonitor.ProcessMetric> cachedProcesses = Collections.emptyList();
     private long lastProcessUpdate = 0;
 
@@ -43,7 +43,7 @@ public class Dashboard {
         this.screen.startScreen();
         this.screen.setCursorPosition(null);
         this.tg = screen.newTextGraphics();
-        
+
         this.sysMon = new SystemMonitor();
         this.envService = new EnvironmentService();
         this.cryptoService = new CryptoService();
@@ -62,7 +62,9 @@ public class Dashboard {
             }
 
             long sleepTime = 100 - (System.currentTimeMillis() - startTime);
-            if (sleepTime > 0) Thread.sleep(sleepTime);
+            if (sleepTime > 0) {
+                Thread.sleep(sleepTime);
+            }
         }
         screen.stopScreen();
     }
@@ -79,8 +81,8 @@ public class Dashboard {
         tg.fill(' ');
 
         int leftWidth = width / 2 - 2;
-        int statsHeight = 16; 
-        
+        int statsHeight = 16;
+
         double cpu = sysMon.getCpuLoad();
         double mem = sysMon.getMemoryUsage();
         double storage = sysMon.getStorageUsage();
@@ -88,16 +90,22 @@ public class Dashboard {
         String battery = sysMon.getBatteryInfo();
         int procs = sysMon.getProcessCount();
         int threads = sysMon.getThreadCount();
-        
+
         drawProgressBar(4, 4, leftWidth - 4, "CPU USAGE", cpu);
         drawProgressBar(4, 6, leftWidth - 4, "RAM USAGE", mem);
         drawProgressBar(4, 8, leftWidth - 4, "STORAGE  ", storage);
-        
+
         tg.setForegroundColor(TEXT_COLOR);
         tg.putString(4, 10, "CPU TEMP : ");
-        tg.setForegroundColor(temp > 75 ? ALERT_COLOR : HIGHLIGHT_COLOR);
-        tg.putString(15, 10, String.format("%.1f C", temp));
-        
+
+        if (temp < 0) {
+            tg.setForegroundColor(HIGHLIGHT_COLOR);
+            tg.putString(15, 10, "N/A");
+        } else {
+            tg.setForegroundColor(temp > 75 ? ALERT_COLOR : HIGHLIGHT_COLOR);
+            tg.putString(15, 10, String.format("%.1f C", temp));
+        }
+
         tg.setForegroundColor(TEXT_COLOR);
         tg.putString(4, 11, "BATTERY  : ");
         tg.setForegroundColor(HIGHLIGHT_COLOR);
@@ -115,11 +123,11 @@ public class Dashboard {
 
         int rightX = width / 2 + 1;
         int rightWidth = width / 2 - 3;
-        
+
         tg.setForegroundColor(TEXT_COLOR);
         tg.putString(rightX + 2, 4, "OWNER  : ");
         tg.setForegroundColor(HIGHLIGHT_COLOR);
-        tg.putString(rightX + 11, 4, "Xyrix");
+        tg.putString(rightX + 11, 4, "Ruke Light");
 
         tg.setForegroundColor(TEXT_COLOR);
         tg.putString(rightX + 2, 5, "OS     : ");
@@ -135,7 +143,7 @@ public class Dashboard {
         tg.putString(rightX + 2, 8, "BRANCH : ");
         tg.setForegroundColor(HIGHLIGHT_COLOR);
         tg.putString(rightX + 11, 8, envService.getGitBranch());
-        
+
         tg.setForegroundColor(TEXT_COLOR);
         tg.putString(rightX + 2, 9, "WEATHER: ");
         tg.setForegroundColor(HIGHLIGHT_COLOR);
@@ -161,7 +169,7 @@ public class Dashboard {
 
         int bottomY = 2 + statsHeight;
         int bottomHeight = height - bottomY - 3;
-        
+
         if (bottomHeight > 6) {
             long now = System.currentTimeMillis();
             if (now - lastProcessUpdate > 2000) {
@@ -171,17 +179,19 @@ public class Dashboard {
 
             tg.setForegroundColor(ALERT_COLOR);
             tg.putString(4, bottomY + 1, "[!] TOP CONSUMERS");
-            
+
             int pY = bottomY + 3;
             for (int i = 0; i < cachedProcesses.size(); i++) {
                 SystemMonitor.ProcessMetric p = cachedProcesses.get(i);
                 String name = p.getName();
-                if (name.length() > 15) name = name.substring(0, 15);
-                
+                if (name.length() > 15) {
+                    name = name.substring(0, 15);
+                }
+
                 double pCpu = p.getCpuUsage();
-                
+
                 String line = String.format("%d. %-15s (%.1f%%)", i + 1, name, pCpu);
-                
+
                 tg.setForegroundColor(i == 0 ? ALERT_COLOR : TEXT_COLOR);
                 tg.putString(4, pY + i, line);
             }
@@ -190,15 +200,17 @@ public class Dashboard {
             int cY = bottomY + 2;
             String[] coins = {"bitcoin", "ethereum", "solana", "dogecoin", "monero"};
             String[] symbols = {"BTC", "ETH", "SOL", "DOGE", "XMR"};
-            
-            int maxPriceLen = rightWidth - 12; 
+
+            int maxPriceLen = rightWidth - 12;
             for (int i = 0; i < coins.length; i++) {
-                if (cY + i >= bottomY + bottomHeight - 1) break;
-                
+                if (cY + i >= bottomY + bottomHeight - 1) {
+                    break;
+                }
+
                 Double price = prices.getOrDefault(coins[i], 0.0);
                 tg.setForegroundColor(TEXT_COLOR);
                 tg.putString(rightX + 2, cY + i, String.format("%-4s : ", symbols[i]));
-                
+
                 String priceStr = String.format("$%,.2f", price);
                 if (priceStr.length() > maxPriceLen) {
                     priceStr = priceStr.substring(0, maxPriceLen);
@@ -209,10 +221,10 @@ public class Dashboard {
         }
 
         drawBox(0, 0, width, height, " TERMDASH SYSTEM V1.0");
-        
+
         drawBox(2, 2, leftWidth, statsHeight, " SYSTEM VITALS ");
         drawBox(rightX, 2, rightWidth, statsHeight, " NETWORK & ENV ");
-        
+
         if (bottomHeight > 6) {
             drawBox(2, bottomY, leftWidth, bottomHeight, " PARASITE RADAR ");
             drawBox(rightX, bottomY, rightWidth, bottomHeight, " CRYPTO TICKER ");
@@ -225,7 +237,9 @@ public class Dashboard {
     }
 
     private String formatBytes(long bytes) {
-        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024) {
+            return bytes + " B";
+        }
         int exp = (int) (Math.log(bytes) / Math.log(1024));
         String pre = "KMGTPE".charAt(exp - 1) + "";
         return String.format("%.1f %sB", bytes / Math.pow(1024, exp), pre);
@@ -233,7 +247,7 @@ public class Dashboard {
 
     private void drawBox(int x, int y, int width, int height, String title) {
         tg.setForegroundColor(TEXT_COLOR);
-        
+
         tg.setCharacter(x, y, Symbols.SINGLE_LINE_TOP_LEFT_CORNER);
         tg.setCharacter(x + width - 1, y, Symbols.SINGLE_LINE_TOP_RIGHT_CORNER);
         tg.setCharacter(x, y + height - 1, Symbols.SINGLE_LINE_BOTTOM_LEFT_CORNER);
@@ -264,17 +278,21 @@ public class Dashboard {
 
         int barWidth = width;
         int filledWidth = (int) (barWidth * percentage);
-        
+
         tg.setForegroundColor(TextColor.ANSI.BLACK_BRIGHT);
         for (int i = 0; i < barWidth; i++) {
             tg.setCharacter(x + i, y + 1, Symbols.BLOCK_MIDDLE);
         }
 
         for (int i = 0; i < filledWidth; i++) {
-            if (percentage > 0.9) tg.setForegroundColor(ALERT_COLOR);
-            else if (percentage > 0.7) tg.setForegroundColor(TextColor.ANSI.YELLOW);
-            else tg.setForegroundColor(HIGHLIGHT_COLOR);
-            
+            if (percentage > 0.9) {
+                tg.setForegroundColor(ALERT_COLOR); 
+            }else if (percentage > 0.7) {
+                tg.setForegroundColor(TextColor.ANSI.YELLOW); 
+            }else {
+                tg.setForegroundColor(HIGHLIGHT_COLOR);
+            }
+
             tg.setCharacter(x + i, y + 1, Symbols.BLOCK_SOLID);
         }
     }

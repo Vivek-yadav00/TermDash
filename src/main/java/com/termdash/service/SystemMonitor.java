@@ -1,5 +1,11 @@
 package com.termdash.service;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import oshi.SystemInfo;
 import oshi.hardware.CentralProcessor;
 import oshi.hardware.GlobalMemory;
@@ -11,20 +17,15 @@ import oshi.software.os.OSFileStore;
 import oshi.software.os.OSProcess;
 import oshi.software.os.OperatingSystem;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 public class SystemMonitor {
+
     private final SystemInfo systemInfo;
     private final HardwareAbstractionLayer hardware;
     private final OperatingSystem os;
     private final CentralProcessor processor;
     private final GlobalMemory memory;
     private final Sensors sensors;
-    
+
     private long[] prevTicks;
     private double cachedCpuLoad = 0.0;
     private long lastCpuUpdate = 0;
@@ -44,9 +45,9 @@ public class SystemMonitor {
         this.processor = hardware.getProcessor();
         this.memory = hardware.getMemory();
         this.sensors = hardware.getSensors();
-        
+
         this.prevTicks = processor.getSystemCpuLoadTicks();
-        
+
         List<NetworkIF> networkIFs = hardware.getNetworkIFs();
         this.prevNetBytesRecv = new long[networkIFs.size()];
         this.prevNetBytesSent = new long[networkIFs.size()];
@@ -69,18 +70,24 @@ public class SystemMonitor {
     }
 
     public double getCpuTemperature() {
-        return sensors.getCpuTemperature();
+        double temp = sensors.getCpuTemperature();
+
+        // Filter fake values on Windows
+        if (temp <= 0 || temp >= 95) {
+            return -1; // unsupported / invalid
+        }
+        return temp;
     }
 
     public void updateNetworkSpeeds() {
         long now = System.currentTimeMillis();
         long timeDelta = now - lastNetUpdate;
-        
-        if (timeDelta > 1000) { 
+
+        if (timeDelta > 1000) {
             List<NetworkIF> networkIFs = hardware.getNetworkIFs();
             long totalRx = 0;
             long totalTx = 0;
-            
+
             if (networkIFs.size() != prevNetBytesRecv.length) {
                 this.prevNetBytesRecv = new long[networkIFs.size()];
                 this.prevNetBytesSent = new long[networkIFs.size()];
@@ -95,20 +102,24 @@ public class SystemMonitor {
             for (int i = 0; i < networkIFs.size(); i++) {
                 NetworkIF net = networkIFs.get(i);
                 net.updateAttributes();
-                
+
                 long rx = net.getBytesRecv();
                 long tx = net.getBytesSent();
-                
+
                 long rxDelta = rx - prevNetBytesRecv[i];
                 long txDelta = tx - prevNetBytesSent[i];
-                
-                if (rxDelta > 0) totalRx += rxDelta;
-                if (txDelta > 0) totalTx += txDelta;
-                
+
+                if (rxDelta > 0) {
+                    totalRx += rxDelta;
+                }
+                if (txDelta > 0) {
+                    totalTx += txDelta;
+                }
+
                 prevNetBytesRecv[i] = rx;
                 prevNetBytesSent[i] = tx;
             }
-            
+
             cachedRxSpeed = (long) (totalRx * (1000.0 / timeDelta));
             cachedTxSpeed = (long) (totalTx * (1000.0 / timeDelta));
             lastNetUpdate = now;
@@ -136,11 +147,25 @@ public class SystemMonitor {
 
     public String getBatteryInfo() {
         List<PowerSource> powerSources = hardware.getPowerSources();
+
+        // Desktop or unsupported system
         if (powerSources.isEmpty()) {
-            return "AC POWER";
+            return "NO BATTERY";
         }
+
         PowerSource ps = powerSources.get(0);
-        return String.format("%.0f%% %s", ps.getRemainingCapacityPercent() * 100, ps.isPowerOnLine() ? "(CHR)" : "(BAT)");
+        double percent = ps.getRemainingCapacityPercent();
+
+        // Invalid / fake values returned by OSHI on Windows
+        if (percent <= 0 || percent > 1) {
+            return "N/A";
+        }
+
+        return String.format(
+                "%.0f%% %s",
+                percent * 100,
+                ps.isPowerOnLine() ? "(CHR)" : "(BAT)"
+        );
     }
 
     public String getUptime() {
@@ -199,6 +224,7 @@ public class SystemMonitor {
     }
 
     public static class ProcessMetric {
+
         private final String name;
         private final double cpuUsage;
 
@@ -207,8 +233,13 @@ public class SystemMonitor {
             this.cpuUsage = cpuUsage;
         }
 
-        public String getName() { return name; }
-        public double getCpuUsage() { return cpuUsage; }
+        public String getName() {
+            return name;
+        }
+
+        public double getCpuUsage() {
+            return cpuUsage;
+        }
     }
 
     public long getTotalMemory() {
