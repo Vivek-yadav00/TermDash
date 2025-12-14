@@ -98,7 +98,7 @@ public class Dashboard {
         tg.setForegroundColor(TEXT_COLOR);
         tg.putString(4, 10, "CPU TEMP : ");
 
-        if (temp < 0) {
+        if (temp <= 0) {   // IMPORTANT FIX
             tg.setForegroundColor(HIGHLIGHT_COLOR);
             tg.putString(15, 10, "N/A");
         } else {
@@ -286,10 +286,10 @@ public class Dashboard {
 
         for (int i = 0; i < filledWidth; i++) {
             if (percentage > 0.9) {
-                tg.setForegroundColor(ALERT_COLOR); 
-            }else if (percentage > 0.7) {
-                tg.setForegroundColor(TextColor.ANSI.YELLOW); 
-            }else {
+                tg.setForegroundColor(ALERT_COLOR);
+            } else if (percentage > 0.7) {
+                tg.setForegroundColor(TextColor.ANSI.YELLOW);
+            } else {
                 tg.setForegroundColor(HIGHLIGHT_COLOR);
             }
 
