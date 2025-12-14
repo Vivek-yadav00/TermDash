@@ -49,13 +49,13 @@ A terminal-based system monitoring dashboard built with Java. TermDash provides 
 After building, run the application using:
 
 ```bash
-java -jar target/termdash-1.0-SNAPSHOT.jar
+ target/termdash-1.0-SNAPSHOT.jar
 ```
 
 Or build and run in one command:
 
 ```bash
-mvn clean package && java -jar target/termdash-1.0-SNAPSHOT.jar
+mvn clean package; target/termdash-1.0-SNAPSHOT.jar
 ```
 
 ## Controls
