@@ -27,44 +27,43 @@ public class Dashboard {
     private final SystemMonitor sysMon;
     private final EnvironmentService envService;
     private final CryptoService cryptoService;
+
+    private static final TextColor BG = TextColor.ANSI.BLACK;
+    private static final TextColor TXT = TextColor.ANSI.GREEN;
+    private static final TextColor HI = TextColor.ANSI.GREEN_BRIGHT;
+    private static final TextColor ALERT = TextColor.ANSI.RED_BRIGHT;
+
     private final DecimalFormat df = new DecimalFormat("0.0");
 
     private List<SystemMonitor.ProcessMetric> cachedProcesses = Collections.emptyList();
     private long lastProcessUpdate = 0;
 
-    private static final TextColor BACK_COLOR = TextColor.ANSI.BLACK;
-    private static final TextColor TEXT_COLOR = TextColor.ANSI.GREEN;
-    private static final TextColor HIGHLIGHT_COLOR = TextColor.ANSI.GREEN_BRIGHT;
-    private static final TextColor ALERT_COLOR = TextColor.ANSI.RED_BRIGHT;
-
     public Dashboard() throws IOException {
-        Terminal terminal = new DefaultTerminalFactory().createTerminal();
-        this.screen = new TerminalScreen(terminal);
-        this.screen.startScreen();
-        this.screen.setCursorPosition(null);
-        this.tg = screen.newTextGraphics();
+        Terminal terminal = new DefaultTerminalFactory()
+                .setInitialTerminalSize(new TerminalSize(120, 38))
+                .createTerminal();
 
-        this.sysMon = new SystemMonitor();
-        this.envService = new EnvironmentService();
-        this.cryptoService = new CryptoService();
+        screen = new TerminalScreen(terminal);
+        screen.startScreen();
+        screen.setCursorPosition(null);
+        tg = screen.newTextGraphics();
+
+        sysMon = new SystemMonitor();
+        envService = new EnvironmentService();
+        cryptoService = new CryptoService();
     }
 
     public void run() throws IOException, InterruptedException {
         while (true) {
-            long startTime = System.currentTimeMillis();
+            sysMon.updateNetworkSpeeds(); // 🔥 REQUIRED
 
             draw();
             screen.refresh();
 
             var key = screen.pollInput();
-            if (key != null && (key.getCharacter() != null && key.getCharacter() == 'q' || key.getKeyType() == com.googlecode.lanterna.input.KeyType.Escape)) {
-                break;
-            }
+            if (key != null && key.getCharacter() != null && key.getCharacter() == 'q') break;
 
-            long sleepTime = 100 - (System.currentTimeMillis() - startTime);
-            if (sleepTime > 0) {
-                Thread.sleep(sleepTime);
-            }
+            Thread.sleep(120);
         }
         screen.stopScreen();
     }
@@ -74,225 +73,159 @@ public class Dashboard {
         int width = size.getColumns();
         int height = size.getRows();
 
-        sysMon.updateNetworkSpeeds();
-
-        tg.setBackgroundColor(BACK_COLOR);
-        tg.setForegroundColor(TEXT_COLOR);
+        tg.setBackgroundColor(BG);
+        tg.setForegroundColor(TXT);
         tg.fill(' ');
 
         int leftWidth = width / 2 - 2;
-        int statsHeight = 16;
-
-        double cpu = sysMon.getCpuLoad();
-        double mem = sysMon.getMemoryUsage();
-        double storage = sysMon.getStorageUsage();
-        double temp = sysMon.getCpuTemperature();
-        String battery = sysMon.getBatteryInfo();
-        int procs = sysMon.getProcessCount();
-        int threads = sysMon.getThreadCount();
-
-        drawProgressBar(4, 4, leftWidth - 4, "CPU USAGE", cpu);
-        drawProgressBar(4, 6, leftWidth - 4, "RAM USAGE", mem);
-        drawProgressBar(4, 8, leftWidth - 4, "STORAGE  ", storage);
-
-        tg.setForegroundColor(TEXT_COLOR);
-        tg.putString(4, 10, "CPU TEMP : ");
-
-        if (temp <= 0) {   // IMPORTANT FIX
-            tg.setForegroundColor(HIGHLIGHT_COLOR);
-            tg.putString(15, 10, "N/A");
-        } else {
-            tg.setForegroundColor(temp > 75 ? ALERT_COLOR : HIGHLIGHT_COLOR);
-            tg.putString(15, 10, String.format("%.1f C", temp));
-        }
-
-        tg.setForegroundColor(TEXT_COLOR);
-        tg.putString(4, 11, "BATTERY  : ");
-        tg.setForegroundColor(HIGHLIGHT_COLOR);
-        tg.putString(15, 11, battery);
-
-        tg.setForegroundColor(TEXT_COLOR);
-        tg.putString(4, 12, "PROCESSES: ");
-        tg.setForegroundColor(HIGHLIGHT_COLOR);
-        tg.putString(15, 12, String.valueOf(procs));
-
-        tg.setForegroundColor(TEXT_COLOR);
-        tg.putString(4, 13, "THREADS  : ");
-        tg.setForegroundColor(HIGHLIGHT_COLOR);
-        tg.putString(15, 13, String.valueOf(threads));
-
         int rightX = width / 2 + 1;
         int rightWidth = width / 2 - 3;
+        int topHeight = 17;
 
-        tg.setForegroundColor(TEXT_COLOR);
-        tg.putString(rightX + 2, 4, "OWNER  : ");
-        tg.setForegroundColor(HIGHLIGHT_COLOR);
-        tg.putString(rightX + 11, 4, "Ruke Light");
+        int bottomY = 2 + topHeight;
+        int bottomHeight = height - bottomY - 2;
 
-        tg.setForegroundColor(TEXT_COLOR);
-        tg.putString(rightX + 2, 5, "OS     : ");
-        tg.setForegroundColor(HIGHLIGHT_COLOR);
-        tg.putString(rightX + 11, 5, sysMon.getOsName());
+        // ───────── SYSTEM VITALS ─────────
+        drawProgressBar(4, 4, leftWidth - 4, "CPU USAGE", sysMon.getCpuLoad());
+        drawProgressBar(4, 6, leftWidth - 4, "RAM USAGE", sysMon.getMemoryUsage());
+        drawProgressBar(4, 8, leftWidth - 4, "STORAGE ", sysMon.getStorageUsage());
 
-        tg.setForegroundColor(TEXT_COLOR);
-        tg.putString(rightX + 2, 6, "UPTIME : ");
-        tg.setForegroundColor(HIGHLIGHT_COLOR);
-        tg.putString(rightX + 11, 6, sysMon.getUptime());
+        double temp = sysMon.getCpuTemperature();
+        tg.putString(4, 10, "CPU TEMP : ");
+        tg.setForegroundColor(temp > 75 ? ALERT : HI);
+        tg.putString(15, 10, temp <= 0 ? "N/A" : df.format(temp) + " C");
 
-        tg.setForegroundColor(TEXT_COLOR);
-        tg.putString(rightX + 2, 8, "BRANCH : ");
-        tg.setForegroundColor(HIGHLIGHT_COLOR);
-        tg.putString(rightX + 11, 8, envService.getGitBranch());
+        tg.setForegroundColor(TXT);
+        tg.putString(4, 11, "BATTERY  : ");
+        tg.setForegroundColor(HI);
+        tg.putString(15, 11, sysMon.getBatteryInfo());
 
-        tg.setForegroundColor(TEXT_COLOR);
-        tg.putString(rightX + 2, 9, "WEATHER: ");
-        tg.setForegroundColor(HIGHLIGHT_COLOR);
-        tg.putString(rightX + 11, 9, envService.getWeather());
+        tg.setForegroundColor(TXT);
+        tg.putString(4, 12, "PROCESSES: ");
+        tg.setForegroundColor(HI);
+        tg.putString(15, 12, String.valueOf(sysMon.getProcessCount()));
 
-        tg.setForegroundColor(TEXT_COLOR);
-        tg.putString(rightX + 2, 10, "FANS   : ");
-        tg.setForegroundColor(HIGHLIGHT_COLOR);
-        tg.putString(rightX + 11, 10, sysMon.getFanSpeed());
+        tg.setForegroundColor(TXT);
+        tg.putString(4, 13, "THREADS  : ");
+        tg.setForegroundColor(HI);
+        tg.putString(15, 13, String.valueOf(sysMon.getThreadCount()));
 
-        long rx = sysMon.getNetworkDownloadSpeed();
-        long tx = sysMon.getNetworkUploadSpeed();
+        // ───────── NETWORK & ENV ─────────
+        tg.setForegroundColor(TXT);
+        tg.putString(rightX + 2, 4, "OS      : ");
+        tg.setForegroundColor(HI);
+        tg.putString(rightX + 13, 4, sysMon.getOsName());
 
-        tg.setForegroundColor(TEXT_COLOR);
-        tg.putString(rightX + 2, 12, "NET DWN: ");
-        tg.setForegroundColor(HIGHLIGHT_COLOR);
-        tg.putString(rightX + 11, 12, formatBytes(rx) + "/s");
+        tg.setForegroundColor(TXT);
+        tg.putString(rightX + 2, 5, "UPTIME  : ");
+        tg.setForegroundColor(HI);
+        tg.putString(rightX + 13, 5, sysMon.getUptime());
 
-        tg.setForegroundColor(TEXT_COLOR);
-        tg.putString(rightX + 2, 13, "NET UP : ");
-        tg.setForegroundColor(HIGHLIGHT_COLOR);
-        tg.putString(rightX + 11, 13, formatBytes(tx) + "/s");
+        tg.setForegroundColor(TXT);
+        tg.putString(rightX + 2, 6, "BRANCH  : ");
+        tg.setForegroundColor(HI);
+        tg.putString(rightX + 13, 6, envService.getGitBranch());
 
-        int bottomY = 2 + statsHeight;
-        int bottomHeight = height - bottomY - 3;
+        tg.setForegroundColor(TXT);
+        tg.putString(rightX + 2, 7, "WEATHER : ");
+        tg.setForegroundColor(HI);
+        tg.putString(rightX + 13, 7, envService.getWeather());
 
-        if (bottomHeight > 6) {
-            long now = System.currentTimeMillis();
-            if (now - lastProcessUpdate > 2000) {
-                cachedProcesses = sysMon.getTopProcesses(3);
-                lastProcessUpdate = now;
-            }
+        // 🔥 FAN SPEED
+        tg.setForegroundColor(TXT);
+        tg.putString(rightX + 2, 9, "FAN SPD : ");
+        tg.setForegroundColor(HI);
+        tg.putString(rightX + 13, 9, sysMon.getFanSpeed());
 
-            tg.setForegroundColor(ALERT_COLOR);
-            tg.putString(4, bottomY + 1, "[!] TOP CONSUMERS");
+        // 🔥 NETWORK SPEED
+        tg.setForegroundColor(TXT);
+        tg.putString(rightX + 2, 11, "NET DOWN: ");
+        tg.setForegroundColor(HI);
+        tg.putString(rightX + 13, 11, formatBytes(sysMon.getNetworkDownloadSpeed()) + "/s");
 
-            int pY = bottomY + 3;
-            for (int i = 0; i < cachedProcesses.size(); i++) {
-                SystemMonitor.ProcessMetric p = cachedProcesses.get(i);
-                String name = p.getName();
-                if (name.length() > 15) {
-                    name = name.substring(0, 15);
-                }
+        tg.setForegroundColor(TXT);
+        tg.putString(rightX + 2, 12, "NET UP  : ");
+        tg.setForegroundColor(HI);
+        tg.putString(rightX + 13, 12, formatBytes(sysMon.getNetworkUploadSpeed()) + "/s");
 
-                double pCpu = p.getCpuUsage();
-
-                String line = String.format("%d. %-15s (%.1f%%)", i + 1, name, pCpu);
-
-                tg.setForegroundColor(i == 0 ? ALERT_COLOR : TEXT_COLOR);
-                tg.putString(4, pY + i, line);
-            }
-
-            Map<String, Double> prices = cryptoService.getPrices();
-            int cY = bottomY + 2;
-            String[] coins = {"bitcoin", "ethereum", "solana", "dogecoin", "monero"};
-            String[] symbols = {"BTC", "ETH", "SOL", "DOGE", "XMR"};
-
-            int maxPriceLen = rightWidth - 12;
-            for (int i = 0; i < coins.length; i++) {
-                if (cY + i >= bottomY + bottomHeight - 1) {
-                    break;
-                }
-
-                Double price = prices.getOrDefault(coins[i], 0.0);
-                tg.setForegroundColor(TEXT_COLOR);
-                tg.putString(rightX + 2, cY + i, String.format("%-4s : ", symbols[i]));
-
-                String priceStr = String.format("$%,.2f", price);
-                if (priceStr.length() > maxPriceLen) {
-                    priceStr = priceStr.substring(0, maxPriceLen);
-                }
-                tg.setForegroundColor(HIGHLIGHT_COLOR);
-                tg.putString(rightX + 9, cY + i, priceStr);
-            }
+        // ───────── PARASITE RADAR ─────────
+        if (System.currentTimeMillis() - lastProcessUpdate > 2000) {
+            cachedProcesses = sysMon.getTopProcesses(3);
+            lastProcessUpdate = System.currentTimeMillis();
         }
 
-        drawBox(0, 0, width, height, " TERMDASH SYSTEM V1.0");
+        tg.setForegroundColor(ALERT);
+        tg.putString(4, bottomY + 1, "[!] TOP CONSUMERS");
 
-        drawBox(2, 2, leftWidth, statsHeight, " SYSTEM VITALS ");
-        drawBox(rightX, 2, rightWidth, statsHeight, " NETWORK & ENV ");
-
-        if (bottomHeight > 6) {
-            drawBox(2, bottomY, leftWidth, bottomHeight, " PARASITE RADAR ");
-            drawBox(rightX, bottomY, rightWidth, bottomHeight, " CRYPTO TICKER ");
+        for (int i = 0; i < cachedProcesses.size(); i++) {
+            var p = cachedProcesses.get(i);
+            tg.setForegroundColor(i == 0 ? ALERT : TXT);
+            tg.putString(4, bottomY + 3 + i,
+                    (i + 1) + ". " + p.getName() + " (" + df.format(p.getCpuUsage()) + "%)");
         }
 
-        String time = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
-        String footer = " STATUS: ONLINE | TIME: " + time + " | PRESS 'q' TO DISCONNECT ";
-        tg.setForegroundColor(TEXT_COLOR);
-        tg.putString((width - footer.length()) / 2, height - 2, footer);
+        // ───────── CRYPTO ─────────
+        Map<String, Double> prices = cryptoService.getPrices();
+        String[] coins = {"bitcoin", "ethereum", "solana", "dogecoin"};
+        String[] sym = {"BTC", "ETH", "SOL", "DOGE"};
+
+        int cy = bottomY + 2;
+        for (int i = 0; i < coins.length; i++) {
+            Double price = prices.get(coins[i]);
+            if (price == null) continue;
+
+            tg.setForegroundColor(TXT);
+            tg.putString(rightX + 2, cy + i, sym[i] + " : ");
+            tg.setForegroundColor(HI);
+            tg.putString(rightX + 11, cy + i, "$" + String.format("%,.2f", price));
+        }
+
+        // ───────── BOXES ─────────
+        drawBox(0, 0, width, height - 1, " TERMDASH ");
+        drawBox(2, 2, leftWidth, topHeight, " SYSTEM VITALS ");
+        drawBox(rightX, 2, rightWidth, topHeight, " NETWORK & ENV ");
+        drawBox(2, bottomY, leftWidth, bottomHeight, " PARASITE RADAR ");
+        drawBox(rightX, bottomY, rightWidth, bottomHeight, " CRYPTO TICKER ");
+
+        String footer = "ONLINE | " +
+                LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")) +
+                " | q = EXIT";
+
+        tg.setForegroundColor(TXT);
+        tg.putString((width - footer.length()) / 2, height - 1, footer);
     }
 
-    private String formatBytes(long bytes) {
-        if (bytes < 1024) {
-            return bytes + " B";
-        }
-        int exp = (int) (Math.log(bytes) / Math.log(1024));
-        String pre = "KMGTPE".charAt(exp - 1) + "";
-        return String.format("%.1f %sB", bytes / Math.pow(1024, exp), pre);
+    private String formatBytes(long b) {
+        if (b < 1024) return b + " B";
+        int e = (int) (Math.log(b) / Math.log(1024));
+        return String.format("%.1f %sB", b / Math.pow(1024, e), "KMGT".charAt(e - 1));
     }
 
-    private void drawBox(int x, int y, int width, int height, String title) {
-        tg.setForegroundColor(TEXT_COLOR);
-
+    private void drawBox(int x, int y, int w, int h, String title) {
+        tg.setForegroundColor(TXT);
         tg.setCharacter(x, y, Symbols.SINGLE_LINE_TOP_LEFT_CORNER);
-        tg.setCharacter(x + width - 1, y, Symbols.SINGLE_LINE_TOP_RIGHT_CORNER);
-        tg.setCharacter(x, y + height - 1, Symbols.SINGLE_LINE_BOTTOM_LEFT_CORNER);
-        tg.setCharacter(x + width - 1, y + height - 1, Symbols.SINGLE_LINE_BOTTOM_RIGHT_CORNER);
+        tg.setCharacter(x + w - 1, y, Symbols.SINGLE_LINE_TOP_RIGHT_CORNER);
+        tg.setCharacter(x, y + h - 1, Symbols.SINGLE_LINE_BOTTOM_LEFT_CORNER);
+        tg.setCharacter(x + w - 1, y + h - 1, Symbols.SINGLE_LINE_BOTTOM_RIGHT_CORNER);
 
-        for (int i = x + 1; i < x + width - 1; i++) {
+        for (int i = x + 1; i < x + w - 1; i++) {
             tg.setCharacter(i, y, Symbols.SINGLE_LINE_HORIZONTAL);
-            tg.setCharacter(i, y + height - 1, Symbols.SINGLE_LINE_HORIZONTAL);
+            tg.setCharacter(i, y + h - 1, Symbols.SINGLE_LINE_HORIZONTAL);
         }
-
-        for (int i = y + 1; i < y + height - 1; i++) {
+        for (int i = y + 1; i < y + h - 1; i++) {
             tg.setCharacter(x, i, Symbols.SINGLE_LINE_VERTICAL);
-            tg.setCharacter(x + width - 1, i, Symbols.SINGLE_LINE_VERTICAL);
+            tg.setCharacter(x + w - 1, i, Symbols.SINGLE_LINE_VERTICAL);
         }
-
-        if (title != null && !title.isEmpty()) {
-            tg.setForegroundColor(HIGHLIGHT_COLOR);
-            tg.putString(x + 2, y, title);
-            tg.setForegroundColor(TEXT_COLOR);
-        }
+        tg.setForegroundColor(HI);
+        tg.putString(x + 2, y, title);
     }
 
-    private void drawProgressBar(int x, int y, int width, String label, double percentage) {
-        tg.setForegroundColor(TEXT_COLOR);
+    private void drawProgressBar(int x, int y, int w, String label, double v) {
+        tg.setForegroundColor(TXT);
         tg.putString(x, y, label);
-        String percentStr = df.format(percentage * 100) + "%";
-        tg.putString(x + width - percentStr.length(), y, percentStr);
-
-        int barWidth = width;
-        int filledWidth = (int) (barWidth * percentage);
-
-        tg.setForegroundColor(TextColor.ANSI.BLACK_BRIGHT);
-        for (int i = 0; i < barWidth; i++) {
-            tg.setCharacter(x + i, y + 1, Symbols.BLOCK_MIDDLE);
-        }
-
-        for (int i = 0; i < filledWidth; i++) {
-            if (percentage > 0.9) {
-                tg.setForegroundColor(ALERT_COLOR);
-            } else if (percentage > 0.7) {
-                tg.setForegroundColor(TextColor.ANSI.YELLOW);
-            } else {
-                tg.setForegroundColor(HIGHLIGHT_COLOR);
-            }
-
+        int filled = (int) (w * v);
+        for (int i = 0; i < w; i++) {
+            tg.setForegroundColor(i < filled ? HI : TextColor.ANSI.BLACK_BRIGHT);
             tg.setCharacter(x + i, y + 1, Symbols.BLOCK_SOLID);
         }
     }
