@@ -39,9 +39,15 @@ public class Dashboard {
     private long lastProcessUpdate = 0;
 
     public Dashboard() throws IOException {
-        Terminal terminal = new DefaultTerminalFactory()
-                .setInitialTerminalSize(new TerminalSize(120, 38))
-                .createTerminal();
+        DefaultTerminalFactory factory = new DefaultTerminalFactory()
+                .setInitialTerminalSize(new TerminalSize(120, 38));
+        Terminal terminal;
+        try {
+            terminal = factory.createTerminal();
+        } catch (IOException e) {
+            // Fallback to Swing terminal emulator on Windows console issues or headless mode fallback
+            terminal = factory.setPreferTerminalEmulator(true).createTerminal();
+        }
 
         screen = new TerminalScreen(terminal);
         screen.startScreen();

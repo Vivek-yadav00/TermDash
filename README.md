@@ -28,8 +28,14 @@ A terminal-based system monitoring dashboard built with Java. TermDash provides 
 
 ## Prerequisites
 
-- **Java 17** or higher
+- **Java 17** or higher (Ensure your `JAVA_HOME` environment variable points to a Java 17+ JDK)
 - **Maven 3.6+** for building
+
+> [!TIP]
+> If your compilation fails with `invalid target release: 17`, it means your default terminal is pointing to Java 8. Set your `JAVA_HOME` temporarily before compiling:
+> - **PowerShell:** `$env:JAVA_HOME="C:\Program Files\Java\jdk-24"`
+> - **CMD:** `set JAVA_HOME=C:\Program Files\Java\jdk-24`
+
 
 ## Installation
 
@@ -49,13 +55,13 @@ A terminal-based system monitoring dashboard built with Java. TermDash provides 
 After building, run the application using:
 
 ```bash
- target/termdash-1.0-SNAPSHOT.jar
+java -jar target/termdash-1.0-SNAPSHOT.jar
 ```
 
 Or build and run in one command:
 
 ```bash
-mvn clean package; target/termdash-1.0-SNAPSHOT.jar
+mvn clean package; java -jar target/termdash-1.0-SNAPSHOT.jar
 ```
 
 ## Controls
