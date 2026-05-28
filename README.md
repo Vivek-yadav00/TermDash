@@ -52,7 +52,15 @@ A terminal-based system monitoring dashboard built with Java. TermDash provides 
 
 ## Running the Application
 
-After building, run the application using:
+### Option A: Using Docker (easiest, no setup required)
+If you have Docker installed, you can run the application directly without installing Java or Maven:
+
+```bash
+docker run -it --rm vivek01mxt/termdash:latest
+```
+
+### Option B: Building Locally (requires Java 17 & Maven)
+After building the project, run the application using:
 
 ```bash
 java -jar target/termdash-1.0-SNAPSHOT.jar
@@ -66,10 +74,17 @@ mvn clean package; java -jar target/termdash-1.0-SNAPSHOT.jar
 
 ## Controls
 
-| Key | Action |
-|-----|--------|
+| Key / Control | Action |
+|---|---|
+| `Arrow Keys` | Move selection box between menu buttons |
+| `Enter` | Open the selected module |
+| `1` | Quick open **System Vitals** |
+| `2` | Quick open **Network & Env** |
+| `3` | Quick open **Parasite Radar** |
+| `4` | Quick open **Crypto Ticker** |
+| `5` | Quick open **All Modules Together** |
+| `Esc` / `Backspace` | Go back to the Control Center (Main Menu) |
 | `q` | Quit the application |
-| `Esc` | Quit the application |
 
 ## Project Structure
 
