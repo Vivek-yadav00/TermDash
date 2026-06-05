@@ -41,7 +41,7 @@ A terminal-based system monitoring dashboard built with Java. TermDash provides 
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/bixl007/termdash.git
+   git clone https://github.com/Vivek-yadav00/TermDash.git
    cd termdash
    ```
 
